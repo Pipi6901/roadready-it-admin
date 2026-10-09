@@ -89,7 +89,10 @@ The ministry publishes the listato in **German and French** besides Italian, and
 circolare 101771 of 21/12/2010 cut the exam's foreign languages back to the two protected
 linguistic regimes (Alto Adige, Valle d'Aosta). Those two are not translations in the app —
 they are languages the exam is sat in, so the app shows them as the question itself, on one
-line, the same way it shows Italian.
+line, the same way it shows Italian. They are still published as locales — `V1_LOCALE_CODES`
+in `functions/index.js` lists all seven — because the app reads every wording that is not the
+bundle's Italian out of the translation catalogue. Take `de` or `fr` out of that list and they
+disappear from the app's question-language picker on the next publish.
 
 The five translation languages are **Romanian, Arabic, Ukrainian, Spanish and English**, and
 none of them comes from the ministry, so all five are translated with Claude:
