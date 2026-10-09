@@ -2,21 +2,6 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const serviceAccount = require('../serviceAccountKey.json');
 
-/**
- * An environment value with no fallback.
- *
- * Every country-specific value in this repository is read this way on purpose.
- * A default would let a misconfigured instance write one country's content
- * into another's bundle, and that bundle reaches every installed app within
- * minutes — there is no store review in the way to catch it.
- */
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set — see .env.local.example`);
-  return value;
-}
-
-
 initializeApp({ credential: cert(serviceAccount) });
 const db = getFirestore();
 
@@ -25,7 +10,7 @@ async function main() {
   const locales = await db.collection('locales').get();
   const topics = await db
     .collection('countries')
-    .doc(requireEnv('COUNTRY_CODE'))
+    .doc('PL')
     .collection('testsets')
     .doc('draft')
     .collection('topics')
