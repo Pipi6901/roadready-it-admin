@@ -7,6 +7,21 @@ const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
 const { GoogleAuth } = require('google-auth-library');
 
+/**
+ * An environment value with no fallback.
+ *
+ * Every country-specific value in this repository is read this way on purpose.
+ * A default would let a misconfigured instance write one country's content
+ * into another's bundle, and that bundle reaches every installed app within
+ * minutes — there is no store review in the way to catch it.
+ */
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set — see .env.local.example`);
+  return value;
+}
+
+
 // Both functions run as the Firebase Admin SDK service account rather than
 // the default compute one. publishTestSet deploys to Hosting through the REST
 // API, and that needs Hosting deploy rights on whatever identity the function
@@ -17,7 +32,7 @@ const { GoogleAuth } = require('google-auth-library');
 // function borrows it instead, and no IAM change is needed. The deployer
 // needs to be a project owner (actAs on the account), which the CLI login is.
 setGlobalOptions({
-  serviceAccount: 'firebase-adminsdk-fbsvc@roadready-pl.iam.gserviceaccount.com',
+  serviceAccount: requireEnv('PUBLISH_SERVICE_ACCOUNT'),
 });
 
 initializeApp();
@@ -28,7 +43,7 @@ const ROLES = ['content_editor', 'admin'];
 // The Polish project's Hosting site. publishTestSet deploys content.json
 // here, and the app fetches it from the matching URL — the two must name
 // the same site or the app silently keeps serving the previous bundle.
-const HOSTING_SITE_ID = 'roadready-pl';
+const HOSTING_SITE_ID = requireEnv('HOSTING_SITE_ID');
 
 async function requireAdmin(request) {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');

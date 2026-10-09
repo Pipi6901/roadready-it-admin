@@ -40,8 +40,23 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 
 const serviceAccount = require('../serviceAccountKey.json');
+
+/**
+ * An environment value with no fallback.
+ *
+ * Every country-specific value in this repository is read this way on purpose.
+ * A default would let a misconfigured instance write one country's content
+ * into another's bundle, and that bundle reaches every installed app within
+ * minutes — there is no store review in the way to catch it.
+ */
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set — see .env.local.example`);
+  return value;
+}
+
 const BUCKET = 'roadready-pl.firebasestorage.app';
-const COUNTRY = 'PL';
+const COUNTRY = requireEnv('COUNTRY_CODE');
 // Uploads are I/O-bound and run six at a time; transcodes are CPU-bound and
 // ffmpeg already uses every core, so `--only wmv` runs two at a time
 // (override either with CONCURRENCY=n).

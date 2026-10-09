@@ -12,6 +12,21 @@
 const path = require('path');
 const admin = require('firebase-admin');
 
+/**
+ * An environment value with no fallback.
+ *
+ * Every country-specific value in this repository is read this way on purpose.
+ * A default would let a misconfigured instance write one country's content
+ * into another's bundle, and that bundle reaches every installed app within
+ * minutes — there is no store review in the way to catch it.
+ */
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set — see .env.local.example`);
+  return value;
+}
+
+
 const KEY = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, '..', 'serviceAccountKey.json');
 const UID = process.env.PUBLISH_UID || 'qVJaWfidxvTgpvvysfuqT6t6WLJ3';
 // The web app's public Firebase API key (not a secret — it is in the client bundle).
@@ -34,7 +49,7 @@ async function main() {
   const res = await fetch(FUNCTION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ data: { countryCode: 'PL' } }),
+    body: JSON.stringify({ data: { countryCode: requireEnv('COUNTRY_CODE') } }),
   });
   const text = await res.text();
   console.log(res.status, `${((Date.now() - started) / 1000).toFixed(1)}s`, text.slice(0, 2000));
