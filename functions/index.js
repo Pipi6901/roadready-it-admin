@@ -230,7 +230,12 @@ exports.publishTestSet = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (
   // are absent on purpose: they are exam languages, carried by the bundle
   // itself, not translations. A publish-time filter, not a delete: another
   // locale doc in Firestore stays there until it is added here.
-  const V1_LOCALE_CODES = ['ro', 'ar', 'uk', 'es', 'en'];
+  // German and French close the list, as exam languages rather than
+  // translations: the app shows them alone, the way the scheda is printed
+  // in Bolzano and Valle d'Aosta, and the ministry publishes the whole
+  // listato in both. Leaving them out here would take them off the
+  // question-language picker on the first publish.
+  const V1_LOCALE_CODES = ['ro', 'ar', 'uk', 'es', 'en', 'de', 'fr'];
   const localesSnap = await db.collection('locales').get();
   // In dashboard order (sortOrder from the seed), not Firestore's document
   // order — the app splices this list straight into its language picker, and
