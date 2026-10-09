@@ -10,7 +10,7 @@ interface MediaRow extends Media {
   id: string;
 }
 
-const LICENCES: Media['licence'][] = ['gov-pl', 'own', 'DVSA', 'OGL-v3'];
+const LICENCES: Media['licence'][] = ['ministero-it', 'own'];
 
 export default function MediaLibraryPage() {
   const [items, setItems] = React.useState<MediaRow[] | null>(null);

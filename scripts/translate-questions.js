@@ -1,16 +1,18 @@
-// Translates the catalogue's questions into the app's languages with Claude.
+// Translates the listato's statements into the app's languages with Claude.
 //
-// The ministry ships English, German and Ukrainian (the languages the exam can
-// be sat in); the app also offers Russian, Spanish and Turkish, and the
-// Ukrainian set covers only two thirds of the bank. This script fills every
-// gap: for each language it takes the questions that have no official
-// translation and translates text (and, for specialist questions, the three
-// options) in batches, writing
+// The ministry translates the listato into German and French only: circolare
+// 101771 of 21/12/2010 cut the exam's foreign languages back to the two
+// protected linguistic regimes (Alto Adige, Valle d'Aosta). Those two are not
+// translations in the app at all — they are languages the exam is sat in, so
+// they come from the bundle as first-class text (see EXAM_LANGUAGES in the
+// mobile repo). Everything else is this script's job: for each language it
+// takes the statements that have no official translation and translates them
+// in batches, writing
 //
-//   ../roadready-pl/content/katalog/translations/{lang}.json
+//   ../roadready-it/content/listato/translations/{lang}.json
 //     { "q-123": { "text": "...", "options": { "A": "...", "B": "...", "C": "..." } } }
 //
-// which scripts/import_katalog.py in the mobile repo merges into content.json
+// which scripts/import_listato.py in the mobile repo merges into content.json
 // (official translations always win). Then seed, then publish.
 //
 // Resumable: what is already in the file is skipped, and the file is written
@@ -19,7 +21,7 @@
 //
 // Auth: ANTHROPIC_API_KEY in the environment (or an `ant auth login` profile).
 //
-// Usage: node scripts/translate-questions.js [--lang ru,es,tr,uk,de] [--limit N]
+// Usage: node scripts/translate-questions.js [--lang ro,ar,uk,es,en] [--limit N]
 //          [--model claude-opus-5] [--concurrency 4] [--dry-run]
 //   --lang         which languages (default: all five)
 //   --limit N      stop after N batches per language (a first look at quality)
@@ -29,16 +31,18 @@ const fs = require('fs');
 const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
 
-const ROOT = path.resolve(__dirname, '../../roadready-pl/content/katalog');
+const ROOT = path.resolve(__dirname, '../../roadready-it/content/listato');
 const CONTENT = path.join(ROOT, 'content.json');
 const OUT_DIR = path.join(ROOT, 'translations');
 
+// The five the Italian app ships. Italian is the bundle itself; German and
+// French come from the ministry and are exam languages, not translations.
 const LANGUAGES = {
-  ru: 'Russian',
-  es: 'Spanish',
-  tr: 'Turkish',
+  ro: 'Romanian',
+  ar: 'Arabic',
   uk: 'Ukrainian',
-  de: 'German',
+  es: 'Spanish',
+  en: 'English',
 };
 
 const BATCH_SIZE = 20;
@@ -66,17 +70,18 @@ for (const l of langs) {
 /* ------------------------------------------------------------- prompt --- */
 
 function systemPrompt(language) {
-  return `You translate questions from the official Polish driving-theory exam (egzamin teoretyczny na prawo jazdy, WORD) from Polish into ${language}.
+  return `You translate statements from the official Italian driving-theory exam (esame di teoria per la patente, listato ministeriale) from Italian into ${language}.
 
-Who reads this: a foreigner living in Poland who will sit the real exam in Polish, or in English, German or Ukrainian. The translation sits directly under the Polish original in a learning app. Its job is to make the Polish sentence understood exactly — not to be a freer, nicer sentence of its own.
+Who reads this: someone living in Italy who will sit the real exam in Italian. The exam is 30 statements to be marked VERO or FALSO, and the translation sits directly under the Italian original in a learning app. Its job is to make the Italian sentence understood exactly — not to be a freer, nicer sentence of its own.
 
 Rules:
-- Translate the meaning exactly. Do not answer the question, do not add, drop, soften or explain anything. If the Polish is ambiguous, keep the ambiguity.
-- Follow the Polish sentence structure closely (same clause order where the target language allows it), so the reader can map the two sentences word by word. Keep the question form. Keep "W tej sytuacji…" / "Czy w tej sytuacji…" as a literal "In this situation…" equivalent — it refers to a picture or clip the reader sees.
-- Use the established traffic-law vocabulary of the target language for Polish legal terms (e.g. obszar zabudowany, ustąpić pierwszeństwa, droga z pierwszeństwem, pojazd uprzywilejowany, pas ruchu, skrzyżowanie o ruchu okrężnym, motorower, czterokołowiec). Where a term has no exact equivalent, translate descriptively rather than borrowing a term with a different legal meaning.
-- Keep every number, unit, sign designation (e.g. A-7, B-33, D-1), road-category name, licence category (AM, A1, B, C, D, T…), and the words TAK / NIE as they are.
-- Address the reader the way the Polish does (second person singular).
-- For questions with lettered options, translate each option as a standalone phrase in the same register; keep A/B/C.
+- These are assertions, not questions. Keep them assertions: never turn one into a question, and never mark, hint at or explain whether it is true or false.
+- Translate the meaning exactly. Do not add, drop, soften or explain anything. If the Italian is ambiguous, keep the ambiguity — a statement is often false precisely because of one exact word.
+- Follow the Italian sentence structure closely (same clause order where the target language allows it), so the reader can map the two sentences word by word.
+- Keep references to the picture literal: "il segnale raffigurato", "la figura", "il pannello raffigurato" point at an image the reader is looking at, so they must stay a pointer to that image and not become a description of it.
+- Use the established traffic-law vocabulary of the target language for Italian legal terms. Be especially careful with terms the target language is likely to collapse into one: fermata, sosta and arresto are three distinct legal states; carreggiata, corsia, banchina and marciapiede are four distinct parts of the road; centro abitato is a legal area, not "the town centre"; dare la precedenza is not "to give way to the road". Others to get right: strada con diritto di precedenza, rotatoria, incrocio, sorpasso, distanza di sicurezza, massa complessiva a pieno carico, ciclomotore, autoarticolato, autotreno, veicolo in servizio di emergenza, carta di circolazione, revisione, assicurazione RCA, segnale di pericolo / divieto / obbligo / precedenza / indicazione, pannello integrativo, segnaletica orizzontale. Where a term has no exact equivalent, translate descriptively rather than borrowing a term that means something else in that country's traffic law.
+- Keep every number, unit, speed, sign designation, licence category (AM, A1, A2, A, B1, B, BE, C, CE, D, DE...) and article reference as it is.
+- Address the reader the way the Italian does.
 - Return only the translations, in the requested JSON shape, one item per input id, all ids present.`;
 }
 
@@ -170,7 +175,7 @@ async function translateBatch(client, language, batch, specialist, usage) {
     messages: [
       {
         role: 'user',
-        content: `Translate these ${batch.length} ${specialist ? 'questions with their three options' : 'yes/no questions'} into ${language}.\n\n${JSON.stringify(payload)}`,
+        content: `Translate these ${batch.length} ${specialist ? 'questions with their three options' : 'true/false statements'} into ${language}.\n\n${JSON.stringify(payload)}`,
       },
     ],
     // Translation is not a reasoning task: low effort keeps the model from
@@ -218,7 +223,7 @@ async function pool(items, size, worker) {
 async function main() {
   const content = loadJson(CONTENT, null);
   if (!content) {
-    console.error(`No ${CONTENT} — run scripts/import_katalog.py in the mobile repo first.`);
+    console.error(`No ${CONTENT} — run scripts/import_listato.py in the mobile repo first.`);
     process.exit(1);
   }
   fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -235,7 +240,7 @@ async function main() {
     plan.push({ lang, file, done, todo, basic, specialist, chars });
     console.log(
       `${lang} (${LANGUAGES[lang]}): official ${Object.keys(content.translations[lang] ?? {}).length}, generated so far ${Object.keys(done).length}, ` +
-        `to translate ${todo.length} (${basic.length} yes/no, ${specialist.length} with options), ${(chars / 1000).toFixed(0)}k chars`,
+        `to translate ${todo.length} (${basic.length} true/false, ${specialist.length} with options), ${(chars / 1000).toFixed(0)}k chars`,
     );
   }
   if (dryRun) {
@@ -296,7 +301,7 @@ async function main() {
     `\nTokens: input ${usage.input.toLocaleString()} (+${usage.cacheRead.toLocaleString()} cached, ${usage.cacheWrite.toLocaleString()} written), output ${usage.output.toLocaleString()}` +
       (cost ? ` · ≈ $${cost.toFixed(2)}` : ''),
   );
-  console.log('Next: python scripts/import_katalog.py … (mobile repo) → node scripts/seed.js → publish.');
+  console.log('Next: python scripts/import_listato.py … (mobile repo) → node scripts/seed.js → publish.');
 }
 
 /** Rough bill from list prices, so the run reports what it cost. */

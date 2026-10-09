@@ -4,10 +4,9 @@
 // documents rewritten whole).
 //
 // Usage: node scripts/seed.js [path/to/content.json]
-// Default: ../../roadready-pl/content/katalog/content.json — the official
-//   ministry catalogue, produced by `python scripts/import_katalog.py` in the
-//   mobile repo. (The old default, ../../roadready-pl/content.json, is the
-//   110-question demo bank exported by `npx tsx scripts/export-content-json.ts`.)
+// Default: ../../roadready-it/content/listato/content.json — the ministerial
+//   listato, produced by `python scripts/import_listato.py` in the mobile
+//   repo.
 
 const fs = require('fs');
 const path = require('path');
@@ -17,7 +16,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const serviceAccount = require('../serviceAccountKey.json');
 const contentPath = path.resolve(
   __dirname,
-  process.argv[2] ?? '../../roadready-pl/content/katalog/content.json',
+  process.argv[2] ?? '../../roadready-it/content/listato/content.json',
 );
 
 initializeApp({ credential: cert(serviceAccount) });

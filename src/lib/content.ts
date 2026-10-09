@@ -3,20 +3,17 @@ import { collection } from 'firebase/firestore';
 import { db } from './firebase';
 
 /**
- * RoadReady ships one country per app build (ADR-013 in the mobile repo) —
- * the admin still models the full multi-country Firestore schema
- * (docs/02-architecture.md §2), but v1's UI only ever operates on GB's draft
- * test-set. Swapping this constant for a country picker is the whole change
- * needed if that ever stops being true.
- */
-/**
  * The one country this admin instance edits.
  *
- * One country per deployment, mirroring the app (ADR-013). Changing it here
- * without also pointing Firebase at a different project would have this
- * instance writing Polish content into the British database.
+ * One admin per country, mirroring the app's one country per build
+ * (ADR-013): this instance is the Italian one, the Polish and British banks
+ * are edited from their own deployments against their own Firebase projects.
+ * The Firestore schema is the shared multi-country one
+ * (docs/02-architecture.md §2), so what separates them is this constant plus
+ * .firebaserc — changing one without the other would have this instance
+ * writing Italian content into another country's database.
  */
-export const PRIMARY_COUNTRY_CODE = 'PL';
+export const PRIMARY_COUNTRY_CODE = 'IT';
 export const DRAFT_TESTSET_ID = 'draft';
 
 export function topicsCollection() {

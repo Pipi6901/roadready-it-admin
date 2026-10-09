@@ -10,7 +10,7 @@ async function main() {
   const locales = await db.collection('locales').get();
   const topics = await db
     .collection('countries')
-    .doc('PL')
+    .doc('IT')
     .collection('testsets')
     .doc('draft')
     .collection('topics')

@@ -17,7 +17,7 @@ const { GoogleAuth } = require('google-auth-library');
 // function borrows it instead, and no IAM change is needed. The deployer
 // needs to be a project owner (actAs on the account), which the CLI login is.
 setGlobalOptions({
-  serviceAccount: 'firebase-adminsdk-fbsvc@roadready-pl.iam.gserviceaccount.com',
+  serviceAccount: 'firebase-adminsdk-fbsvc@roadready-it.iam.gserviceaccount.com',
 });
 
 initializeApp();
@@ -25,10 +25,10 @@ const auth = getAuth();
 const db = getFirestore();
 
 const ROLES = ['content_editor', 'admin'];
-// The Polish project's Hosting site. publishTestSet deploys content.json
+// The Italian project's Hosting site. publishTestSet deploys content.json
 // here, and the app fetches it from the matching URL — the two must name
 // the same site or the app silently keeps serving the previous bundle.
-const HOSTING_SITE_ID = 'roadready-pl';
+const HOSTING_SITE_ID = 'roadready-it';
 
 async function requireAdmin(request) {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
@@ -86,7 +86,7 @@ exports.inviteUser = onCall(async (request) => {
  * Publish the draft test-set: validate, reassemble it into the exact
  * content.json shape the mobile app already fetches
  * (roadready/src/data/remoteContent.ts's isValidPayload), compute
- * versionHash, deploy to the Polish Hosting site, mark the
+ * versionHash, deploy to the Italian Hosting site, mark the
  * testset published.
  */
 // The full ministry catalogue is 3.5k questions in 23 topics, read one topic
@@ -140,10 +140,11 @@ exports.publishTestSet = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (
         mediaId: q.mediaId ?? null,
         subtopic: q.subtopic ?? null,
         sourceRef: q.sourceRef,
-        // The Polish paper is built from these two: a fixed number of each
-        // class and each weight. A question that inherits nothing is basic
-        // and worth one point, which is what the app assumes anyway.
-        category: q.category ?? topic.category ?? 'basic',
+        // Italy has one class of question and weights none of them, so a
+        // bundle carries no category at all and every statement is worth
+        // one. The field is still passed through when a source has it, so
+        // the schema stays the shared one.
+        ...(q.category ?? topic.category ? { category: q.category ?? topic.category } : {}),
         points: q.points === 2 || q.points === 3 ? q.points : 1,
         // Which licence categories the question is asked for (AM, A1, …, PT
         // — the ministry's codes). Empty or missing means every category;
@@ -219,12 +220,17 @@ exports.publishTestSet = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (
     };
   });
 
-  // Translation languages of the Polish app: Ukrainian, Russian, English,
-  // Spanish, German, Turkish (see the mobile repo, src/data/demo-bundle.ts).
-  // The official catalogue carries English, German and Ukrainian; the rest
-  // are the app's own. A publish-time filter, not a delete: another locale
-  // doc in Firestore stays there until it is added here.
-  const V1_LOCALE_CODES = ['uk', 'ru', 'en', 'es', 'de', 'tr'];
+  // Translation languages of the Italian app: Romanian (1.05m residents),
+  // Arabic (Morocco, Egypt and Tunisia — and the exam itself was sittable in
+  // Arabic until circolare 101771 of 21/12/2010 cut it), Ukrainian, Spanish
+  // (Peru, Ecuador, Colombia and the rest of Latin America — the audience
+  // Italian legal vocabulary misleads most, through words that look familiar
+  // and are not), English (the bridge for the Indian, Bangladeshi, Filipino
+  // and Nigerian communities, and the app's own fallback). German and French
+  // are absent on purpose: they are exam languages, carried by the bundle
+  // itself, not translations. A publish-time filter, not a delete: another
+  // locale doc in Firestore stays there until it is added here.
+  const V1_LOCALE_CODES = ['ro', 'ar', 'uk', 'es', 'en'];
   const localesSnap = await db.collection('locales').get();
   // In dashboard order (sortOrder from the seed), not Firestore's document
   // order — the app splices this list straight into its language picker, and

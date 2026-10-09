@@ -42,9 +42,12 @@ export interface TestSet {
 }
 
 /**
- * Polish exam class. Basic sections are answered TAK/NIE, specialist ones
- * A/B/C, and the paper takes a fixed number of each — so the class has to be
- * on the topic, where the app reads it from.
+ * Exam class, for the countries that have one. Poland splits its paper into
+ * basic (TAK/NIE) and specialist (A/B/C) questions and draws a fixed number
+ * of each; Italy asks one kind of question — 30 VERO/FALSO statements — so
+ * nothing here sets it and the field stays absent throughout the Italian
+ * bank. Kept in the shared schema, not deleted, so the two admins read the
+ * same Firestore documents.
  */
 export type QuestionCategory = 'basic' | 'specialist';
 
@@ -75,25 +78,27 @@ export interface Question {
   subtopic: string | null;
   sourceRef: string;
   /**
-   * 1, 2 or 3. The Polish paper is scored in points, not answers (74 in
-   * total, 68 to pass), and it draws a fixed number of each weight — a
-   * question without a weight cannot be placed on a paper at all. The mobile
-   * app treats a missing value as 1.
+   * 1, 2 or 3. Poland scores its paper in points and draws a fixed number of
+   * each weight. Italy counts errors instead — 30 statements, at most 3 wrong
+   * — so every Italian statement is worth 1 and the mobile app treats a
+   * missing value as 1 anyway.
    */
   points?: number;
   /** Normally inherited from the topic; stored so a question can be read alone. */
   category?: QuestionCategory;
   /**
-   * Licence categories the question is asked for — the ministry's codes (AM,
-   * A1, A2, A, B1, B, C1, C, D1, D, T, PT), as listed per question in the
-   * official catalogue. Empty or missing means every category. The app
-   * filters its whole bank by the learner's chosen licence.
+   * Licence categories the question is asked for — the ministry's codes. Every
+   * statement in the A/B listato carries the same seven (AM, A1, A2, A, B1, B,
+   * BE), because that is what the listato is for; the categories above B come
+   * from a separate listato that is not imported. Empty or missing means every
+   * category. The app filters its whole bank by the learner's chosen licence.
    */
   licences?: string[];
   /**
-   * File name of the picture or clip the official catalogue attaches to this
-   * question (e.g. "1a15_00001.jpg"). Read-only here: it is what the media
-   * import matches against when the ministry's archive is uploaded.
+   * File name of the figure the listato attaches to this statement — an md5 of
+   * the image bytes (e.g. "5a226c55de66377f9dae0a004c51f57f.jpeg"), so one
+   * sign drawn once is one file. Read-only here: it is what the media import
+   * matches against.
    */
   sourceMedia?: string | null;
   sortOrder: number;
@@ -101,7 +106,7 @@ export interface Question {
 }
 
 /** All licence codes in the order the catalogue and the app list them. */
-export const LICENCE_CODES = ['AM', 'A1', 'A2', 'A', 'B1', 'B', 'C1', 'C', 'D1', 'D', 'T', 'PT'] as const;
+export const LICENCE_CODES = ['AM', 'A1', 'A2', 'A', 'B1', 'B', 'BE'] as const;
 
 export interface Locale {
   code: string;
@@ -125,9 +130,14 @@ export interface Media {
   bytes?: number;
   hazardWindow: { startMs: number; endMs: number } | null;
   usedByQuestions: string[];
-  /** 'gov-pl': the Ministry of Infrastructure's own files, imported by scripts/import-media.js. */
-  licence: 'gov-pl' | 'own' | 'DVSA' | 'OGL-v3';
-  /** File name in the ministry's archive, for imported media (matches Question.sourceMedia). */
+  /**
+   * 'ministero-it': figures out of the ministry's own listato, imported by
+   * scripts/import-media.js. They are an official act of the State, which
+   * art. 5 of L. 633/1941 puts outside copyright — but the field still
+   * records where a file came from, because 'own' files do not have that.
+   */
+  licence: 'ministero-it' | 'own';
+  /** File name in the listato, for imported media (matches Question.sourceMedia). */
   sourceName?: string;
   deletedAt: string | null;
 }

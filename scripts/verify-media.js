@@ -10,7 +10,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 
 const serviceAccount = require('../serviceAccountKey.json');
-initializeApp({ credential: cert(serviceAccount), storageBucket: 'roadready-pl.firebasestorage.app' });
+initializeApp({ credential: cert(serviceAccount), storageBucket: 'roadready-it.firebasestorage.app' });
 const db = getFirestore();
 const bucket = getStorage().bucket();
 const fix = process.argv.includes('--fix');

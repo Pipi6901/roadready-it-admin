@@ -1,24 +1,25 @@
-// Imports the ministry's media archive and attaches each file to the
-// questions that refer to it.
+// Imports the listato's figures and attaches each file to the questions that
+// refer to it.
 //
-// The official catalogue names a picture or clip per question
-// (`sourceMedia`, e.g. "3106D15_a_org.jpg", "AK_D05_06_org.wmv" — see
-// roadready-pl/scripts/import_katalog.py). The files themselves come as a
-// 9.5 GB archive from https://www.gov.pl/web/infrastruktura/prawo-jazdy.
-// This script walks a folder of those files, uploads each one that some
+// The listato names a figure per statement (`sourceMedia`, e.g.
+// "5a226c55de66377f9dae0a004c51f57f.jpeg" — an md5 of the image bytes, so
+// the same sign drawn once is one file). The figures are not published
+// separately: scripts/import_listato.py in the mobile repo pulls them out of
+// the ministerial PDF into roadready-it/content/listato/figures (407 files,
+// 3.7 MB). This script walks that folder, uploads each one that some
 // draft question needs to Storage under media/{mediaId}/{filename}, writes
 // the matching media/{mediaId} document — the same shape the admin's upload
 // button produces (src/lib/media.ts) — and sets `mediaId` on every question
 // that names the file. Publish afterwards for the app to pick them up.
 //
-// Clips arrive as WMV, which neither iOS nor Android plays. With ffmpeg on
-// PATH (or FFMPEG=/path/to/ffmpeg) they are transcoded to H.264 MP4 into a
-// cache folder next to the source and the MP4 is what gets uploaded; an
-// already-present .mp4 with the same stem is used as is. Without ffmpeg,
-// clips are skipped and counted, and the run can be repeated once it is
-// installed — everything is idempotent: mediaId is derived from the file
-// name, an existing Storage object is not re-uploaded, an existing media
-// document is only re-linked.
+// The Italian exam has no clips, so the video half of this script never
+// fires here — it is kept because the script is shared with Poland, whose
+// catalogue ships WMV that needs transcoding to MP4 (ffmpeg on PATH, or
+// FFMPEG=/path/to/ffmpeg).
+//
+// Everything is idempotent: mediaId is derived from the file name, an
+// existing Storage object is not re-uploaded, an existing media document is
+// only re-linked. So a run can be repeated after a listato update.
 //
 // Usage: node scripts/import-media.js <folder> [--dry-run] [--limit N] [--only jpg|wmv] [--replace]
 //   --dry-run  match and report, upload nothing, write nothing
@@ -40,8 +41,8 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 
 const serviceAccount = require('../serviceAccountKey.json');
-const BUCKET = 'roadready-pl.firebasestorage.app';
-const COUNTRY = 'PL';
+const BUCKET = 'roadready-it.firebasestorage.app';
+const COUNTRY = 'IT';
 // Uploads are I/O-bound and run six at a time; transcodes are CPU-bound and
 // ffmpeg already uses every core, so `--only wmv` runs two at a time
 // (override either with CONCURRENCY=n).
@@ -343,7 +344,7 @@ async function main() {
           hazardWindow: null,
           usedByQuestions: [],
           // Public-sector material published by the Ministry of Infrastructure.
-          licence: 'gov-pl',
+          licence: 'ministero-it',
           sourceName,
           deletedAt: null,
         };

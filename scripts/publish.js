@@ -8,7 +8,7 @@
 //   PUBLISH_UID                     uid of an admin user (default: the first admin)
 //
 // Takes ~30–60 s; prints the new versionHash. Verify afterwards at
-// https://roadready-pl.web.app/content.json
+// https://roadready-it.web.app/content.json
 const path = require('path');
 const admin = require('firebase-admin');
 
@@ -16,7 +16,7 @@ const KEY = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, '
 const UID = process.env.PUBLISH_UID || 'qVJaWfidxvTgpvvysfuqT6t6WLJ3';
 // The web app's public Firebase API key (not a secret — it is in the client bundle).
 const WEB_API_KEY = 'AIzaSyCX2GqbqLMqMT1iI0qFVcMHeHUEtETCx80';
-const FUNCTION_URL = 'https://us-central1-roadready-pl.cloudfunctions.net/publishTestSet';
+const FUNCTION_URL = 'https://us-central1-roadready-it.cloudfunctions.net/publishTestSet';
 
 admin.initializeApp({ credential: admin.credential.cert(require(path.resolve(KEY))) });
 
@@ -34,7 +34,7 @@ async function main() {
   const res = await fetch(FUNCTION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ data: { countryCode: 'PL' } }),
+    body: JSON.stringify({ data: { countryCode: 'IT' } }),
   });
   const text = await res.text();
   console.log(res.status, `${((Date.now() - started) / 1000).toFixed(1)}s`, text.slice(0, 2000));

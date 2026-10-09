@@ -45,7 +45,7 @@ async function main() {
   const link = await auth.generatePasswordResetLink(email);
   console.log('\nSet-your-password link (single use, expires in about an hour):\n');
   console.log(link);
-  console.log('\nAfter setting the password, sign in at https://roadready-pl-admin.web.app');
+  console.log('\nAfter setting the password, sign in at https://roadready-it-admin.web.app');
 }
 
 main()
