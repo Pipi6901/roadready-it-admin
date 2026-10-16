@@ -40,7 +40,7 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 
-const serviceAccount = require('../serviceAccountKey.json');
+const serviceAccount = require('./lib/project').loadServiceAccount();
 const BUCKET = 'roadready-it.firebasestorage.app';
 const COUNTRY = 'IT';
 // Uploads are I/O-bound and run six at a time; transcodes are CPU-bound and

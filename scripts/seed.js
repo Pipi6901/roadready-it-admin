@@ -3,7 +3,7 @@
 // Firestore match the file again (stale questions are deleted, translation
 // documents rewritten whole).
 //
-// Usage: node scripts/seed.js [path/to/content.json]
+// Usage: node scripts/seed.js [path/to/content.json] [--dry-run]
 // Default: ../../roadready-it/content/listato/content.json — the ministerial
 //   listato, produced by `python scripts/import_listato.py` in the mobile
 //   repo.
@@ -12,20 +12,39 @@ const fs = require('fs');
 const path = require('path');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { loadServiceAccount } = require('./lib/project');
+const { validateBundle, printReport } = require('./lib/bundle');
 
-const serviceAccount = require('../serviceAccountKey.json');
+// --dry-run checks the bundle and stops: no key, no network, no billing plan.
+const args = process.argv.slice(2);
+const dryRun = args.includes('--dry-run');
+const fileArg = args.find((a) => !a.startsWith('--'));
 const contentPath = path.resolve(
   __dirname,
-  process.argv[2] ?? '../../roadready-it/content/listato/content.json',
+  fileArg ?? '../../roadready-it/content/listato/content.json',
 );
 
-initializeApp({ credential: cert(serviceAccount) });
-
-const db = getFirestore();
+// Opened inside main(), after the bundle has been checked: a dry run must not
+// need a key, and a bundle that fails the check must not get as far as a
+// connection — the seed writes in batches, so a crash part-way leaves the
+// database half-populated with no easy way to tell how far it got.
+let db;
 
 async function main() {
   const raw = fs.readFileSync(contentPath, 'utf8');
   const data = JSON.parse(raw);
+
+  const report = validateBundle(data, { figuresDir: path.join(path.dirname(contentPath), 'figures') });
+  printReport(report);
+  if (report.errors.length) process.exit(1);
+  if (dryRun) {
+    console.log('Dry run: nothing written.');
+    return;
+  }
+
+  // The check inside refuses a key for any project but this one.
+  initializeApp({ credential: cert(loadServiceAccount()) });
+  db = getFirestore();
 
   const primaryCountry = data.country;
   const countries = data.countries;
