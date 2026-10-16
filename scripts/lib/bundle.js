@@ -228,6 +228,14 @@ function validateBundle(data, { figuresDir } = {}) {
   }
   stats.largestTranslationDoc = largest.size ? `${(largest.size / 1024).toFixed(0)} KB (${largest.where})` : 'no translations yet';
 
+  // The same rule publishTestSet applies (functions/locales.js): a language
+  // with nothing translated into it is not put in the bundle. Said here so it
+  // is not a surprise after the publish.
+  const untranslated = [...localeCodes].filter((c) => Object.keys(translations[c] ?? {}).length === 0);
+  if (untranslated.length) {
+    warn(`no translations yet for ${untranslated.join(', ')} — publishTestSet will leave ${untranslated.length === 1 ? 'it' : 'them'} out of the bundle`);
+  }
+
   Object.assign(stats, {
     topics: data.topics.length,
     questions: data.questions.length,

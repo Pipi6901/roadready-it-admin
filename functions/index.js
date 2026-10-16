@@ -1,11 +1,13 @@
+// crypto stays here for inviteUser's throwaway password; zlib moved to hosting.js.
 const crypto = require('crypto');
-const zlib = require('zlib');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
 const { GoogleAuth } = require('google-auth-library');
+const { deployFiles } = require('./hosting');
+const { publishableLocales } = require('./locales');
 
 // Both functions run as the Firebase Admin SDK service account rather than
 // the default compute one. publishTestSet deploys to Hosting through the REST
@@ -237,21 +239,14 @@ exports.publishTestSet = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (
   // question-language picker on the first publish.
   const V1_LOCALE_CODES = ['ro', 'ar', 'uk', 'es', 'en', 'de', 'fr'];
   const localesSnap = await db.collection('locales').get();
-  // In dashboard order (sortOrder from the seed), not Firestore's document
-  // order — the app splices this list straight into its language picker, and
-  // alphabetical would put English above Ukrainian for an audience that is
-  // three-quarters Ukrainian.
-  const locales = localesSnap.docs
-    .map((d) => d.data())
-    .filter((l) => V1_LOCALE_CODES.includes(l.code))
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-    .map((l) => ({
-      code: l.code,
-      nameNative: l.nameNative,
-      nameEnglish: l.nameEnglish,
-      direction: l.direction,
-      flagEmoji: l.flagEmoji,
-    }));
+  // Allowed AND non-empty, in dashboard order — see locales.js for why a
+  // language with nothing translated into it is not offered.
+  const { published: locales, leftOut } = publishableLocales(
+    localesSnap.docs.map((d) => d.data()),
+    translations,
+    V1_LOCALE_CODES,
+  );
+  for (const { code, why } of leftOut) console.log(`locale ${code} left out of the bundle: ${why}`);
 
   const versionHash = `admin-${countryCode.toLowerCase()}-${Date.now()}`;
 
@@ -274,7 +269,13 @@ exports.publishTestSet = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (
     locales,
   };
 
-  await deployToHosting(JSON.stringify(payload));
+  // version.json is a few dozen bytes beside a multi-megabyte content.json.
+  // The app asks for it first and downloads the bundle only when the hash has
+  // moved, instead of downloading the bundle at every launch to compare it.
+  await deployToHosting({
+    '/content.json': JSON.stringify(payload),
+    '/version.json': JSON.stringify({ versionHash }),
+  });
 
   await testsetRef.set(
     {
@@ -290,64 +291,35 @@ exports.publishTestSet = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (
 });
 
 /**
- * Deploys `content.json` to the project's default Hosting site via the
- * Firebase Hosting REST API (versions.create -> populateFiles -> upload ->
- * finalize -> release) — the same four-step flow the `firebase deploy` CLI
- * performs, done here without a local CLI (Cloud Functions can't shell out
- * to it). Requires the Cloud Function's runtime service account to have the
- * "Firebase Hosting Admin" IAM role.
+ * Deploys the bundle files to the project's default Hosting site. The REST
+ * flow itself is in hosting.js, where it is tested; this supplies the site, the
+ * cache headers and a token. Requires the function's runtime service account
+ * to have Hosting deploy rights — see the note at the top of this file.
+ *
+ * `max-age=300` on the bundle is the long-standing value; version.json gets a
+ * minute, because the edge cache serves it to the very check that decides
+ * whether the bundle has changed. A stale copy is self-correcting — the app
+ * compares against the hash inside the bundle it downloads, not against this
+ * file — but there is no reason to let it be five minutes stale.
  */
-async function deployToHosting(contentJson) {
+async function deployToHosting(files) {
   const authClient = await new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/firebase.hosting'],
   }).getClient();
-  const { token } = await authClient.getAccessToken();
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  const gz = zlib.gzipSync(Buffer.from(contentJson));
-  const sha256 = crypto.createHash('sha256').update(gz).digest('hex');
-
-  const versionRes = await fetch(`https://firebasehosting.googleapis.com/v1beta1/sites/${HOSTING_SITE_ID}/versions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      config: {
-        headers: [
-          {
-            glob: '/content.json',
-            headers: { 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' },
-          },
-        ],
+  return deployFiles({
+    siteId: HOSTING_SITE_ID,
+    files,
+    headers: [
+      {
+        glob: '/content.json',
+        headers: { 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' },
       },
-    }),
+      {
+        glob: '/version.json',
+        headers: { 'Cache-Control': 'public, max-age=60', 'Access-Control-Allow-Origin': '*' },
+      },
+    ],
+    getToken: async () => (await authClient.getAccessToken()).token,
   });
-  const version = await versionRes.json();
-  if (!version.name) throw new Error(`Failed to create hosting version: ${JSON.stringify(version)}`);
-
-  const popRes = await fetch(`https://firebasehosting.googleapis.com/v1beta1/${version.name}:populateFiles`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ files: { '/content.json': sha256 } }),
-  });
-  const pop = await popRes.json();
-  if (!pop.uploadUrl) throw new Error(`Failed to populate files: ${JSON.stringify(pop)}`);
-
-  const uploadRes = await fetch(`${pop.uploadUrl}/${sha256}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' },
-    body: gz,
-  });
-  if (!uploadRes.ok) throw new Error(`Hosting upload failed: ${uploadRes.status} ${await uploadRes.text()}`);
-
-  const finalizeRes = await fetch(
-    `https://firebasehosting.googleapis.com/v1beta1/${version.name}?updateMask=status`,
-    { method: 'PATCH', headers, body: JSON.stringify({ status: 'FINALIZED' }) },
-  );
-  if (!finalizeRes.ok) throw new Error(`Failed to finalize version: ${finalizeRes.status} ${await finalizeRes.text()}`);
-
-  const releaseRes = await fetch(
-    `https://firebasehosting.googleapis.com/v1beta1/sites/${HOSTING_SITE_ID}/releases?versionName=${version.name}`,
-    { method: 'POST', headers },
-  );
-  if (!releaseRes.ok) throw new Error(`Failed to release version: ${releaseRes.status} ${await releaseRes.text()}`);
 }
