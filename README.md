@@ -25,6 +25,12 @@ You need `serviceAccountKey.json` in the repo root (never committed — see `.gi
 run the scripts in `scripts/`. Get it from Firebase Console → Project settings → Service
 accounts → Generate new private key, for the `roadready-it` project.
 
+Every script reads the key through `scripts/lib/project.js`, which **refuses to run if the key
+belongs to any other project**. That is deliberate: the Google account that owns this project
+also owns the Polish and British ones, a key file looks the same whichever console it came
+from, and the Admin SDK writes wherever the key points. Download it with the project
+selector at the top left of the Console set to `roadready-it`.
+
 ## Running locally
 
 ```bash
@@ -77,6 +83,19 @@ cd ../roadready-admin-it && node scripts/seed.js    # default: ../roadready-it/c
 That yields **7,020 statements across 25 argomenti**, of which 3,919 refer to one of **407
 figures** extracted from the PDF itself. The listato is an official act of the State, which
 art. 5 of L. 633/1941 places outside copyright.
+
+Check the bundle first — no key, no network, no billing plan needed:
+
+```bash
+node scripts/seed.js --dry-run
+```
+
+It runs `scripts/lib/bundle.js` over the file: fields Firestore would reject as `undefined`, a
+`correctOptionId` that matches no option, a licence code the admin's form would silently drop
+on the next save, a translation document over Firestore's 1 MiB, a locale the publish function
+expects and the bundle lacks, figure files that are not on disk. The real seed runs the same
+check and refuses to start if it finds an error — it writes in batches, so a crash part-way
+leaves the database half-populated with no easy way to tell how far it got.
 
 `seed.js` upserts questions with `{ merge: true }`, deletes questions the file no longer has,
 rewrites the per-topic translation documents whole, and leaves a question's `mediaId` alone
@@ -160,6 +179,40 @@ validates the draft test-set, reassembles it into the same `content.json` shape
 Hosting site — the mobile app picks it up on next launch, no app rebuild. Only the locales in
 `V1_LOCALE_CODES` are included; a locale document that exists in Firestore but is not listed
 there stays unpublished rather than being deleted.
+
+A locale must also **have something in it**: one with no translated questions is left out
+(`functions/locales.js`). German and French are on the list as languages the exam is sat in,
+but until the ministry's German and French listati are imported they would otherwise appear in
+the app's question-language picker with every question falling back to Italian.
+
+Alongside `content.json` it deploys `version.json` — the bundle's `versionHash`, a few dozen
+bytes. The app asks for that first and downloads the bundle only when the hash has moved,
+instead of downloading several megabytes at every launch to compare it.
+`publish.js` from the command line does the same thing as the button; it looks up the first
+admin in `adminUsers` unless `PUBLISH_UID` is set.
+
+## Before the first deploy
+
+```bash
+node scripts/preflight.js
+```
+
+Changes nothing and needs no key. It checks the local files agree with each other (project id in
+`.firebaserc`, `.env.local`, `functions/.env`, the bucket name in `import-media.js`, the app's
+`CONTENT_URL`), validates the listato bundle, asks the Firebase CLI what exists in the project,
+and probes from outside with only the public web key what the CLI cannot see — whether the
+Storage bucket exists, whether Authentication is initialised with Email/Password on, whether
+Firestore has a database. Exit code 1 while anything it can check is missing.
+
+The publish path has tests, with the network replaced by a recorder:
+
+```bash
+cd functions && npm test
+```
+
+They pin the order of the Hosting calls, that what is hashed is what is uploaded, and that a
+failure at any step stops everything after it, so a version is never released with a file
+missing.
 
 ## Deploying changes
 
